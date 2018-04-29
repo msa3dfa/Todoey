@@ -10,11 +10,16 @@ import UIKit
 
 class TableViewController: UITableViewController {
 
-    var itemArray = ["1", "2", "3"]
+    var itemArray : [String] = [""]
+    
+    let defaults = UserDefaults.standard
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
+        if let items = defaults.array(forKey: "itemArray") as? [String] {
+            itemArray = items
+        }
     }
 
     //MARK - Tableview Datasource Methods
@@ -66,10 +71,10 @@ class TableViewController: UITableViewController {
                 
                 self.itemArray.append(alertTextField.text!)
                 
+                self.defaults.set(self.itemArray, forKey: "itemArray")
+                
                 self.tableView.reloadData()
                 
-            } else {
-               
             }
             
         }
