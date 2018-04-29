@@ -10,16 +10,18 @@ import UIKit
 
 class TableViewController: UITableViewController {
 
-    var itemArray : [String] = [""]
-    
+    var itemArray : [Item] = [Item]()
     let defaults = UserDefaults.standard
+    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("items.plist")
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view, typically from a nib.
-        if let items = defaults.array(forKey: "itemArray") as? [String] {
-            itemArray = items
-        }
+        
+        print(dataFilePath)
+     
+//         Do any additional setup after loading the view, typically from a nib.
+    
+        loadItems()
     }
 
     //MARK - Tableview Datasource Methods
@@ -32,7 +34,11 @@ class TableViewController: UITableViewController {
         
         let cell = tableView.dequeueReusableCell(withIdentifier: "toDoItemCell", for: indexPath)
         
-        cell.textLabel?.text = itemArray[indexPath.row]
+        cell.textLabel?.text = itemArray[indexPath.row].itemText
+        
+        let item = itemArray[indexPath.row]
+        
+        cell.accessoryType = item.isChecked ? .checkmark : .none
         
         return cell
         
@@ -46,11 +52,11 @@ class TableViewController: UITableViewController {
         
         let cell = tableView.cellForRow(at: indexPath)
         
-        if cell?.accessoryType == .checkmark {
-            cell?.accessoryType = .none
-        } else {
-            cell?.accessoryType = .checkmark
-        }
+        itemArray[indexPath.row].isChecked = !itemArray[indexPath.row].isChecked
+        
+        saveItems()
+        
+        tableView.reloadData()
         
         tableView.deselectRow(at: indexPath, animated: true)
     }
@@ -69,10 +75,10 @@ class TableViewController: UITableViewController {
             
             if alertTextField.text != "" {
                 
-                self.itemArray.append(alertTextField.text!)
+                self.itemArray.append(Item(text: alertTextField.text!))
                 
-                self.defaults.set(self.itemArray, forKey: "itemArray")
-                
+                self.saveItems()
+          
                 self.tableView.reloadData()
                 
             }
@@ -92,6 +98,31 @@ class TableViewController: UITableViewController {
         
     }
     
+    
+    func saveItems() {
+        let encoder = PropertyListEncoder()
+        
+        do {
+            let data = try encoder.encode(itemArray)
+            try data.write(to: dataFilePath!)
+        } catch {
+            print(error)
+        }
+    }
+    
+    func loadItems() {
+        
+        if let data  = try? Data(contentsOf: dataFilePath!) {
+            let decoder = PropertyListDecoder()
+            do {
+                itemArray = try decoder.decode([Item].self, from: data)
+            } catch {
+                print(error)
+            }
+        }
+        
+    }
+
     
 }
 
