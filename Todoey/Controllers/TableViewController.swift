@@ -7,19 +7,19 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class TableViewController: UITableViewController, UISearchBarDelegate {
 
-    var itemArray : [Item] = [Item]()
+    var itemArray : Results<Item>?
     let defaults = UserDefaults.standard
     var selectedCatagory : Catagory? {
         didSet{
             loadItems()
         }
     }
+    let realm = try! Realm()
 
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -33,18 +33,21 @@ class TableViewController: UITableViewController, UISearchBarDelegate {
     //MARK: - Tableview Datasource Methods
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return itemArray.count
+        return itemArray?.count ?? 1
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
         let cell = tableView.dequeueReusableCell(withIdentifier: "toDoItemCell", for: indexPath)
         
-        cell.textLabel?.text = itemArray[indexPath.row].itemText
-        
-        let item = itemArray[indexPath.row]
-        
-        cell.accessoryType = item.isChecked ? .checkmark : .none
+        if let item = itemArray?[indexPath.row] {
+            
+            cell.textLabel?.text = item.itemText
+            cell.accessoryType = item.isChecked ? .checkmark : .none
+            
+        } else {
+            cell.textLabel?.text = "No items added"
+        }
         
         return cell
         
@@ -55,12 +58,15 @@ class TableViewController: UITableViewController, UISearchBarDelegate {
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
-//        context.delete(itemArray[indexPath.row])
-//        itemArray.remove(at: indexPath.row)
-        
-        itemArray[indexPath.row].isChecked = !itemArray[indexPath.row].isChecked
-        
-        saveItems()
+        if let item = itemArray?[indexPath.row] {
+            do {
+                try realm.write {
+                    item.isChecked = !item.isChecked
+                }
+            } catch {
+                print("Error updating data: \(error)")
+            }
+        }
         
         tableView.reloadData()
         
@@ -81,15 +87,22 @@ class TableViewController: UITableViewController, UISearchBarDelegate {
             
             if alertTextField.text != "" {
                 
-                let newItem = Item(context: self.context)
-                newItem.itemText = alertTextField.text!
-                newItem.isChecked = false
-                newItem.parentCatagory = self.selectedCatagory
                 
-                self.itemArray.append(newItem)
                 
-                self.saveItems()
-          
+                if let currentCategory = self.selectedCatagory {
+                  
+                    do {
+                        try self.realm.write {
+                            let newItem = Item()
+                            newItem.itemText = alertTextField.text!
+                            newItem.dateCreated = Date()
+                            currentCategory.items.append(newItem)
+                        }
+                    } catch {
+                        print("Error saving Items: \(error)")
+                    }
+                }
+
                 self.tableView.reloadData()
                 
             }
@@ -111,75 +124,46 @@ class TableViewController: UITableViewController, UISearchBarDelegate {
     
     //MARK: - save and load data
     
-    func saveItems() {
-        
-        do {
-            try context.save()
-        } catch {
-            print("Error saving context : \(error)")
-        }
-    }
-    
-    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest(), with predicate: NSPredicate? = nil) {
-        
-        
-        let catagoryPredicate = NSPredicate(format: "parentCatagory.name MATCHES %@", selectedCatagory!.name!)
+ 
 
-        if let additionalPredicate = predicate {
-            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [additionalPredicate, catagoryPredicate])
-        } else {
-            request.predicate = catagoryPredicate
-        }
-        
-        do {
-            itemArray = try context.fetch(request)
-        } catch {
-            print("Error fetching data from context: \(error)")
-        }
+    func loadItems() {
+
+        itemArray = selectedCatagory?.items.sorted(byKeyPath: "itemText", ascending: true)
 
     }
-    
+
     //MARK: - search bar protocols and methods
     
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        
-        let request : NSFetchRequest<Item> = Item.fetchRequest()
-        
-        let predicate = NSPredicate(format: "itemText CONTAINS[cd] %@", searchBar.text!)
-        
-        request.sortDescriptors = [NSSortDescriptor(key: "itemText", ascending: true)]
-        
-        loadItems(with: request, with: predicate)
+
+        itemArray = itemArray?.filter("itemText CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "itemText", ascending: true)
         
         tableView.reloadData()
-        
+
     }
-    
+
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         if searchBar.text?.count == 0 {
             loadItems()
             tableView.reloadData()
             
-            print("Done")
-            
             DispatchQueue.main.async {
                 searchBar.resignFirstResponder()
             }
+            
         } else {
-        
-        let request : NSFetchRequest<Item> = Item.fetchRequest()
-        
-        let predicate = NSPredicate(format: "itemText CONTAINS[cd] %@", searchBar.text!)
-        
-        request.sortDescriptors = [NSSortDescriptor(key: "itemText", ascending: true)]
-        
-        loadItems(with: request, with: predicate)
-        
+
+        loadItems()
+            
+        itemArray = itemArray?.filter("itemText CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "itemText", ascending: true)
+            
         tableView.reloadData()
         }
-        
+
     }
     
     
+
+
 }
 

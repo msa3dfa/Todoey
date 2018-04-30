@@ -7,34 +7,33 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class CatagoryViewController: UITableViewController {
 
-    var catagoryArray: [Catagory] = [Catagory]()
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
-    
+    let realm = try! Realm()
+    var catagoryArray: Results<Catagory>!
     
     
     override func viewDidLoad() {
         super.viewDidLoad()
 
         loadCatagorys()
-        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+       
         
     }
 
     //MARK: - tableView Datasource methods
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return catagoryArray.count
+        return catagoryArray?.count ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
         let cell = tableView.dequeueReusableCell(withIdentifier: "catagoryCell", for: indexPath)
         
-        cell.textLabel?.text = catagoryArray[indexPath.row].name
+        cell.textLabel?.text = catagoryArray?[indexPath.row].name ?? "No catagories added yet"
         
         return cell
         
@@ -44,7 +43,10 @@ class CatagoryViewController: UITableViewController {
     //MARK: - tableView delegate methods
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        performSegue(withIdentifier: "goToItems", sender: self)
+        if catagoryArray != nil {
+            performSegue(withIdentifier: "goToItems", sender: self)
+        }
+        tableView.deselectRow(at: indexPath, animated: true)
     }
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
@@ -52,7 +54,7 @@ class CatagoryViewController: UITableViewController {
         let destinationVC = segue.destination as! TableViewController
         
         if let indexPath = tableView.indexPathForSelectedRow {
-            destinationVC.selectedCatagory = catagoryArray[indexPath.row]
+            destinationVC.selectedCatagory = catagoryArray?[indexPath.row]
             
         }
         
@@ -70,13 +72,11 @@ class CatagoryViewController: UITableViewController {
             
             if alertTextField.text != nil {
                 
-                let newCatagory = Catagory(context: self.context)
+                let newCatagory = Catagory()
                 
                 newCatagory.name = alertTextField.text!
-            
-                self.catagoryArray.append(newCatagory)
                 
-                self.saveCatagorys()
+                self.save(catagory: newCatagory)
             
                 self.tableView.reloadData()
             }
@@ -97,10 +97,12 @@ class CatagoryViewController: UITableViewController {
     
     //MARK: - save and load methods
     
-    func saveCatagorys() {
+    func save(catagory: Catagory) {
         
         do {
-          try self.context.save()
+            try realm.write {
+                realm.add(catagory)
+            }
         } catch {
             print("Error saving catagorys: \(error)")
         }
@@ -109,15 +111,7 @@ class CatagoryViewController: UITableViewController {
     
     func loadCatagorys() {
         
-        let request : NSFetchRequest<Catagory> = Catagory.fetchRequest()
-        
-        do {
-           catagoryArray = try context.fetch(request)
-            
-        } catch {
-            print("Error loading catagorys: \(error)")
-        }
-        
+        catagoryArray = realm.objects(Catagory.self)
         
     }
     
